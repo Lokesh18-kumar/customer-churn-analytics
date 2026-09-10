@@ -1,0 +1,159 @@
+Build a complete Data Analytics web application for Customer Churn Analysis.
+
+I will provide a CSV dataset containing customer information.
+
+Your job is to create an end-to-end analytics system that:
+
+1. DATA INGESTION
+- Allow the user to upload a CSV file.
+- Read and inspect every column.
+- Identify numerical, categorical, date, and target columns.
+- Display the dataset dimensions.
+- Show the first 10 rows.
+- Show column data types.
+
+2. DATA QUALITY ANALYSIS
+Automatically identify:
+- Missing values
+- Duplicate rows
+- Invalid values
+- Outliers
+- Inconsistent categorical values
+- Columns with extremely high/low cardinality
+
+Create a data-quality report showing the problems found.
+
+3. DATA CLEANING
+Create a preprocessing pipeline that:
+- Handles missing values appropriately.
+- Removes or handles duplicates.
+- Standardizes categorical values.
+- Converts data types where necessary.
+- Handles outliers appropriately.
+- Clearly explain every transformation.
+
+Do not silently modify the original dataset.
+
+4. EXPLORATORY DATA ANALYSIS
+
+Analyze customer churn patterns.
+
+Calculate:
+- Overall churn rate
+- Churn by age/group
+- Churn by gender
+- Churn by contract type
+- Churn by tenure
+- Churn by payment method
+- Churn by monthly charges
+- Churn by total charges
+- Churn by internet/service type
+- Churn by customer segment
+
+Identify the strongest factors associated with churn.
+
+5. VISUALIZATIONS
+
+Create an interactive analytics dashboard containing:
+- Churn rate KPI
+- Customer count
+- Churned customer count
+- Retained customer count
+- Churn by category charts
+- Tenure vs churn analysis
+- Monthly charges vs churn analysis
+- Correlation analysis
+- Distribution charts
+- Top churn-risk segments
+
+Use appropriate chart types instead of using the same chart everywhere.
+
+6. STATISTICAL ANALYSIS
+
+Where appropriate:
+- Calculate correlations.
+- Compare churned vs retained customers.
+- Identify statistically meaningful differences.
+- Explain the results in simple language.
+
+Do not claim causation from correlation.
+
+7. CUSTOMER SEGMENTATION
+
+Group customers into meaningful segments based on the available dataset.
+
+For each segment show:
+- Number of customers
+- Churn rate
+- Average charges
+- Average tenure
+- Important characteristics
+
+Identify the segments with the highest churn risk.
+
+8. INSIGHTS
+
+Automatically generate a detailed analysis explaining:
+
+- What patterns exist in the dataset?
+- Which customer groups churn the most?
+- Which factors appear most strongly associated with churn?
+- Which segments are relatively stable?
+- Are there unusual patterns or anomalies?
+- What relationships exist between variables?
+
+Do not invent insights.
+Every important insight must be supported by calculated data.
+
+9. BUSINESS RECOMMENDATIONS
+
+Based on the analysis, recommend practical actions to reduce customer churn.
+
+For each recommendation provide:
+- Problem identified
+- Evidence from the dataset
+- Recommended action
+- Expected objective
+- Target customer segment
+
+10. REPORT
+
+Create an exportable analytics report containing:
+
+Executive Summary
+Data Quality
+Dataset Overview
+Exploratory Analysis
+Churn Analysis
+Customer Segmentation
+Key Findings
+Business Recommendations
+Conclusion
+
+11. TECHNOLOGY
+
+Build the application as a full-stack analytics application.
+
+Use:
+- Python for data analysis
+- Pandas for data processing
+- NumPy where appropriate
+- Plotly for interactive visualizations
+- A suitable Python web framework for the dashboard
+- A clean responsive frontend
+
+12. IMPORTANT
+
+The application must work with the CSV I upload rather than relying on hardcoded sample data.
+
+Make the analysis dynamic so that if I upload another compatible customer dataset, the dashboard recalculates the results.
+
+Before finishing:
+- Run the application.
+- Test CSV upload.
+- Test the analysis pipeline.
+- Check for errors.
+- Fix any errors.
+- Verify that charts display correctly.
+- Verify that calculated metrics are consistent.
+- Give me a summary of the architecture and analysis performed.

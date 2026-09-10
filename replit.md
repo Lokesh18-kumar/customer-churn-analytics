@@ -1,6 +1,6 @@
-# [Project name]
+# Customer Churn Analytics
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+Retain/IQ is a CSV-first customer churn analytics dashboard that profiles data quality, analyzes churn patterns, and turns measured signals into practical retention actions.
 
 ## Run & Operate
 
@@ -22,23 +22,34 @@ _Replace the heading above with the project's name, and this line with one sente
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- `artifacts/churn-analytics/src/App.tsx` — upload flow, dashboard views, charts, report/export controls, and responsive UI.
+- `artifacts/churn-analytics/src/index.css` — Retain/IQ visual tokens, chart styling, motion, and print rules.
+- `artifacts/api-server/src/routes/analyze.ts` — server-side profiling, quality checks, churn analysis, segmentation, insights, and recommendations.
+- `lib/api-spec/openapi.yaml` — source-of-truth contract for the analysis request and response.
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- CSV bytes are parsed in the browser and sent as typed rows to the shared API; the original file is never silently overwritten.
+- Analysis preserves outliers and duplicate/missing-value findings as explicit quality signals instead of hiding cleanup decisions.
+- The API detects common churn target names and derives all dashboard values from the uploaded dataset.
+- Report export uses a readable Markdown brief plus browser print/PDF support so users can keep both evidence and presentation formats.
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+- Upload a compatible customer CSV and inspect dimensions, preview rows, inferred types, and target detection.
+- Review missing cells, duplicates, invalid values, outliers, category inconsistencies, and cardinality findings.
+- Explore churn KPIs, category breakdowns, distributions, correlations, tenure/charges relationships, risk segments, insights, recommendations, and transformation notes.
+- Export chart data, a full Markdown analysis brief, or a print-ready PDF from the browser.
 
 ## User preferences
 
-_Populate as you build — explicit user instructions worth remembering across sessions._
+No additional user preferences recorded.
 
 ## Gotchas
 
-_Populate as you build — sharp edges, "always run X before Y" rules._
+- The shared API accepts up to 12 MB of JSON and caps analysis at 200 columns / 100,000 rows per upload.
+- Auto-refresh is off by default and the shortest available interval is five minutes.
+- Churn-specific findings require a column whose name or values clearly indicate a churn, attrition, exit, or cancellation outcome.
 
 ## Pointers
 

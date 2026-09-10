@@ -10,6 +10,8 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: analytics
+    description: Customer churn analytics
 paths:
   /healthz:
     get:
@@ -24,6 +26,31 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /analyze:
+    post:
+      operationId: analyzeDataset
+      tags: [analytics]
+      summary: Analyze a customer churn CSV dataset
+      description: Profiles, cleans, and analyzes uploaded tabular data without mutating the original rows.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AnalyzeRequest"
+      responses:
+        "200":
+          description: Dynamic customer churn analysis
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnalyzeResponse"
+        "400":
+          description: Dataset could not be analyzed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 components:
   schemas:
     HealthStatus:
@@ -33,4 +60,325 @@ components:
           type: string
       required:
         - status
+    AnalyzeRequest:
+      type: object
+      properties:
+        fileName:
+          type: string
+        columns:
+          type: array
+          items:
+            type: string
+        rows:
+          type: array
+          items:
+            type: array
+            items:
+              nullable: true
+              oneOf:
+                - type: string
+                - type: number
+                - type: boolean
+      required:
+        - columns
+        - rows
+    AnalyzeResponse:
+      type: object
+      properties:
+        fileName:
+          type: string
+        overview:
+          $ref: "#/components/schemas/DatasetOverview"
+        quality:
+          $ref: "#/components/schemas/DataQuality"
+        target:
+          $ref: "#/components/schemas/TargetInfo"
+        preview:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        breakdowns:
+          type: array
+          items:
+            $ref: "#/components/schemas/Breakdown"
+        distributions:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              $ref: "#/components/schemas/DistributionBin"
+        scatter:
+          type: array
+          items:
+            $ref: "#/components/schemas/ScatterPoint"
+        correlations:
+          type: array
+          items:
+            $ref: "#/components/schemas/Correlation"
+        segments:
+          type: array
+          items:
+            $ref: "#/components/schemas/Segment"
+        insights:
+          type: array
+          items:
+            type: string
+        recommendations:
+          type: array
+          items:
+            $ref: "#/components/schemas/Recommendation"
+        transformations:
+          type: array
+          items:
+            type: string
+      required:
+        - fileName
+        - overview
+        - quality
+        - target
+        - preview
+        - breakdowns
+        - distributions
+        - scatter
+        - correlations
+        - segments
+        - insights
+        - recommendations
+        - transformations
+    DatasetOverview:
+      type: object
+      properties:
+        rows:
+          type: integer
+        columns:
+          type: integer
+        churned:
+          type: integer
+        retained:
+          type: integer
+        churnRate:
+          type: number
+        avgTenure:
+          type: number
+        avgMonthlyCharges:
+          type: number
+        numericColumns:
+          type: array
+          items:
+            type: string
+        categoricalColumns:
+          type: array
+          items:
+            type: string
+        dateColumns:
+          type: array
+          items:
+            type: string
+      required:
+        - rows
+        - columns
+        - churned
+        - retained
+        - churnRate
+        - avgTenure
+        - avgMonthlyCharges
+        - numericColumns
+        - categoricalColumns
+        - dateColumns
+    DataQuality:
+      type: object
+      properties:
+        missingCells:
+          type: integer
+        duplicateRows:
+          type: integer
+        invalidValues:
+          type: integer
+        outlierCells:
+          type: integer
+        inconsistentCategories:
+          type: integer
+        highCardinality:
+          type: array
+          items:
+            type: string
+        lowCardinality:
+          type: array
+          items:
+            type: string
+        issues:
+          type: array
+          items:
+            type: string
+        columnStats:
+          type: array
+          items:
+            $ref: "#/components/schemas/ColumnStat"
+      required:
+        - missingCells
+        - duplicateRows
+        - invalidValues
+        - outlierCells
+        - inconsistentCategories
+        - highCardinality
+        - lowCardinality
+        - issues
+        - columnStats
+    ColumnStat:
+      type: object
+      properties:
+        name:
+          type: string
+        type:
+          type: string
+        missing:
+          type: integer
+        unique:
+          type: integer
+        sample:
+          type: string
+      required:
+        - name
+        - type
+        - missing
+        - unique
+        - sample
+    TargetInfo:
+      type: object
+      properties:
+        column:
+          type: string
+        positiveLabel:
+          type: string
+        negativeLabel:
+          type: string
+        detected:
+          type: boolean
+      required:
+        - column
+        - positiveLabel
+        - negativeLabel
+        - detected
+    Breakdown:
+      type: object
+      properties:
+        dimension:
+          type: string
+        rows:
+          type: array
+          items:
+            $ref: "#/components/schemas/BreakdownRow"
+      required:
+        - dimension
+        - rows
+    BreakdownRow:
+      type: object
+      properties:
+        label:
+          type: string
+        total:
+          type: integer
+        churned:
+          type: integer
+        rate:
+          type: number
+        average:
+          type: number
+      required:
+        - label
+        - total
+        - churned
+        - rate
+        - average
+    DistributionBin:
+      type: object
+      properties:
+        label:
+          type: string
+        churned:
+          type: integer
+        retained:
+          type: integer
+      required:
+        - label
+        - churned
+        - retained
+    ScatterPoint:
+      type: object
+      properties:
+        x:
+          type: number
+        y:
+          type: number
+        churned:
+          type: boolean
+      required:
+        - x
+        - y
+        - churned
+    Correlation:
+      type: object
+      properties:
+        feature:
+          type: string
+        value:
+          type: number
+        strength:
+          type: string
+      required:
+        - feature
+        - value
+        - strength
+    Segment:
+      type: object
+      properties:
+        name:
+          type: string
+        customers:
+          type: integer
+        churnRate:
+          type: number
+        avgCharges:
+          type: number
+        avgTenure:
+          type: number
+        characteristics:
+          type: string
+        risk:
+          type: string
+      required:
+        - name
+        - customers
+        - churnRate
+        - avgCharges
+        - avgTenure
+        - characteristics
+        - risk
+    Recommendation:
+      type: object
+      properties:
+        problem:
+          type: string
+        evidence:
+          type: string
+        action:
+          type: string
+        objective:
+          type: string
+        segment:
+          type: string
+      required:
+        - problem
+        - evidence
+        - action
+        - objective
+        - segment
+    ErrorResponse:
+      type: object
+      properties:
+        message:
+          type: string
+      required:
+        - message
 
