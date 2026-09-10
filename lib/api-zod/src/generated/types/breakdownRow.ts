@@ -12,4 +12,5 @@ export interface BreakdownRow {
   churned: number;
   rate: number;
   average: number;
+  reliable: boolean;
 }

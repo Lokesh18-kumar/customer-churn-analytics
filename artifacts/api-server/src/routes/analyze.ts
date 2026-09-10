@@ -10,6 +10,7 @@ type Cell = string | number | boolean | null;
 type Row = Cell[];
 
 const MISSING_VALUES = new Set(["", "na", "n/a", "null", "none", "-", "--"]);
+const MIN_SEGMENT_SAMPLE_SIZE = 5;
 
 function text(value: Cell | undefined): string {
   if (value === null || value === undefined) return "";
@@ -148,6 +149,33 @@ router.post("/analyze", (req, res) => {
     };
   });
 
+  const categoricalNormalizers = new Map<string, Map<string, string>>();
+  let inconsistentCategories = 0;
+  const categoryWarningDetails: string[] = [];
+  for (const meta of columnMeta.filter((candidate) => candidate.type === "categorical")) {
+    const groups = new Map<string, { counts: Map<string, number>; rawForms: Set<string> }>();
+    meta.present.forEach((value) => {
+      const key = normalized(value);
+      const group = groups.get(key) ?? { counts: new Map<string, number>(), rawForms: new Set<string>() };
+      const trimmed = text(value);
+      group.counts.set(trimmed, (group.counts.get(trimmed) ?? 0) + 1);
+      group.rawForms.add(String(value));
+      groups.set(key, group);
+    });
+    const normalizer = new Map<string, string>();
+    groups.forEach((group, key) => {
+      const canonical = [...group.counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? key;
+      normalizer.set(key, canonical);
+      if (group.counts.size > 1 || group.rawForms.size > 1) {
+        const affectedCells = [...group.counts.values()].reduce((sum, count) => sum + count, 0);
+        inconsistentCategories += affectedCells;
+        const variants = [...group.rawForms].map((variant) => JSON.stringify(variant)).join(", ");
+        categoryWarningDetails.push(`${meta.name}: ${variants} normalize to "${canonical}".`);
+      }
+    });
+    categoricalNormalizers.set(meta.name, normalizer);
+  }
+
   const targetMeta = findColumn(columns, [/churn/i, /attrition/i, /exited/i, /cancel/i, /retention/i]);
   const targetCandidate = targetMeta
     ? columnMeta.find((meta) => meta.name === targetMeta)
@@ -186,7 +214,6 @@ router.post("/analyze", (req, res) => {
 
   let invalidValues = 0;
   let outlierCells = 0;
-  let inconsistentCategories = 0;
   const highCardinality: string[] = [];
   const lowCardinality: string[] = [];
   const transformations: string[] = [
@@ -208,8 +235,6 @@ router.post("/analyze", (req, res) => {
       invalidValues += meta.present.filter((value) => dateValue(value) === null).length;
       transformations.push(`${meta.name}: date values are parsed for profiling only; the uploaded text remains unchanged.`);
     } else {
-      const raw = meta.present.map((value) => text(value));
-      inconsistentCategories += raw.filter((value) => value !== value.trim() || /\s{2,}/.test(value)).length;
       transformations.push(`${meta.name}: category labels are trimmed and compared case-insensitively for consistent grouping.`);
     }
     if (meta.unique > 20 && meta.unique / Math.max(meta.present.length, 1) > 0.8) highCardinality.push(meta.name);
@@ -224,7 +249,7 @@ router.post("/analyze", (req, res) => {
   if (duplicateRows) qualityIssues.push(`${duplicateRows.toLocaleString()} duplicate row${duplicateRows === 1 ? "" : "s"} found.`);
   if (invalidValues) qualityIssues.push(`${invalidValues.toLocaleString()} value${invalidValues === 1 ? "" : "s"} do not match their inferred type.`);
   if (outlierCells) qualityIssues.push(`${outlierCells.toLocaleString()} potential numeric outlier${outlierCells === 1 ? "" : "s"} flagged.`);
-  if (inconsistentCategories) qualityIssues.push(`${inconsistentCategories.toLocaleString()} categorical value${inconsistentCategories === 1 ? "" : "s"} contain whitespace inconsistencies.`);
+  if (inconsistentCategories) qualityIssues.push(`${inconsistentCategories.toLocaleString()} categorical value${inconsistentCategories === 1 ? "" : "s"} use inconsistent casing or whitespace and were normalized before grouping.`);
   if (highCardinality.length) qualityIssues.push(`High-cardinality fields: ${highCardinality.join(", ")}.`);
   if (!qualityIssues.length) qualityIssues.push("No material quality issues were detected by the automated checks.");
 
@@ -258,13 +283,14 @@ router.post("/analyze", (req, res) => {
           churned: group.churned,
           rate: percentage(group.total ? group.churned / group.total : 0),
           average: average(group.averages),
+          reliable: group.total >= MIN_SEGMENT_SAMPLE_SIZE,
         })),
     };
   }
 
   const breakdowns: Array<{
     dimension: string;
-    rows: Array<{ label: string; total: number; churned: number; rate: number; average: number }>;
+    rows: Array<{ label: string; total: number; churned: number; rate: number; average: number; reliable: boolean }>;
   }> = [];
   const preferredCategoricals = categoricalColumns.filter((column) => {
     if (column === targetColumn) return false;
@@ -274,7 +300,8 @@ router.post("/analyze", (req, res) => {
     return !identifierLike && !mostlyUnique;
   });
   preferredCategoricals.slice(0, 6).forEach((column) => {
-    breakdowns.push(makeBreakdown(column, (row) => text(row[columns.indexOf(column)]), monthlyChargesColumn
+    const normalizer = categoricalNormalizers.get(column);
+    breakdowns.push(makeBreakdown(column, (row) => normalizer?.get(normalized(row[columns.indexOf(column)])) ?? safeLabel(text(row[columns.indexOf(column)])), monthlyChargesColumn
       ? (row) => numericValue(row[columns.indexOf(monthlyChargesColumn)]) : undefined));
   });
 
@@ -333,22 +360,36 @@ router.post("/analyze", (req, res) => {
           ys.push(churnFlags[rowIndex] ? 1 : 0);
         }
       });
+      if (xs.length < MIN_SEGMENT_SAMPLE_SIZE) return null;
       const value = pearson(xs, ys);
       return { feature: column, value, strength: strength(value) };
     })
+    .filter((correlation): correlation is { feature: string; value: number; strength: string } => correlation !== null)
     .sort((a, b) => Math.abs(b.value) - Math.abs(a.value))
     .slice(0, 10);
 
-  const preferredSegmentBreakdown = breakdowns
-    .filter((breakdown) => !numericBreakdownColumns.includes(breakdown.dimension))
+  const numericBreakdownDimensions = new Set(numericBreakdownColumns.map((column) => titleCase(column)));
+  const eligibleBreakdowns = breakdowns
+    .map((breakdown) => ({ ...breakdown, rows: breakdown.rows.filter((row) => row.reliable) }))
+    .filter((breakdown) => breakdown.rows.length > 0 && !numericBreakdownDimensions.has(breakdown.dimension));
+  const excludedSmallGroups = breakdowns.flatMap((breakdown) =>
+    categoricalNormalizers.has(breakdown.dimension)
+      ? breakdown.rows.filter((row) => !row.reliable).map((row) => `${breakdown.dimension} = ${row.label} (n=${row.total})`)
+      : [],
+  );
+  const preferredSegmentBreakdown = eligibleBreakdowns
     .sort((a, b) => {
       const aGap = Math.max(...a.rows.map((row) => Math.abs(row.rate - percentage(overallRate))), 0);
       const bGap = Math.max(...b.rows.map((row) => Math.abs(row.rate - percentage(overallRate))), 0);
       return bGap - aGap;
     })[0];
   const segmentSource = preferredSegmentBreakdown ?? breakdowns[0];
-  const segments = (segmentSource?.rows ?? []).slice(0, 6).map((row) => {
+  const segmentRows = segmentSource && segmentSource.rows.every((row) => row.reliable)
+    ? segmentSource.rows
+    : [];
+  const segments = segmentRows.slice(0, 6).map((row) => {
     const risk = row.rate >= percentage(overallRate) + 5 ? "High risk" : row.rate <= percentage(overallRate) - 5 ? "Stable" : "Watch";
+    const segmentNormalizer = categoricalNormalizers.get(segmentSource?.dimension ?? "");
     return {
       name: segmentSource ? `${titleCase(segmentSource.dimension)} · ${row.label}` : "All customers",
       customers: row.total,
@@ -356,7 +397,8 @@ router.post("/analyze", (req, res) => {
       avgCharges: row.average,
       avgTenure: tenureColumn
         ? average(paddedRows.flatMap((candidate, index) => {
-            const groupLabel = safeLabel(text(candidate[columns.indexOf(segmentSource?.dimension ?? "")]));
+            const rawGroup = candidate[columns.indexOf(segmentSource?.dimension ?? "")];
+            const groupLabel = segmentNormalizer?.get(normalized(rawGroup)) ?? safeLabel(text(rawGroup));
             return groupLabel === row.label && churnFlags[index] === churnFlags[index] ? [numericValue(candidate[columns.indexOf(tenureColumn)]) ?? 0] : [];
           }))
         : 0,
@@ -365,14 +407,33 @@ router.post("/analyze", (req, res) => {
     };
   });
 
+  const qualityWarnings = [...categoryWarningDetails];
+  if (categoryWarningDetails.length) {
+    qualityWarnings.unshift(
+      "Previous analysis issue: categorical spelling and casing variants were treated as separate groups, so a label such as FEMALE could appear to have 100% churn from only one raw-label row. Values are now normalized before statistics are calculated.",
+    );
+  }
+  if (excludedSmallGroups.length) {
+    qualityWarnings.push(
+      `Excluded ${excludedSmallGroups.length} category group${excludedSmallGroups.length === 1 ? "" : "s"} from segment risk recommendations because each has fewer than ${MIN_SEGMENT_SAMPLE_SIZE} customers: ${excludedSmallGroups.slice(0, 8).join(", ")}${excludedSmallGroups.length > 8 ? ", …" : ""}.`,
+    );
+  }
+  if (rows.length < MIN_SEGMENT_SAMPLE_SIZE) {
+    qualityWarnings.push(`The full dataset has ${rows.length} customer${rows.length === 1 ? "" : "s"}; at least ${MIN_SEGMENT_SAMPLE_SIZE} observations are required for segment-level insights.`);
+  }
+
   const insights: string[] = [];
   if (!hasDetectedTarget) {
     insights.push("No churn-like target column was detected, so churn rates and risk findings are shown as unavailable until a target field is included.");
-  } else {
+  } else if (rows.length >= MIN_SEGMENT_SAMPLE_SIZE) {
     insights.push(`Overall churn is ${percentage(overallRate)}% (${churned.toLocaleString()} of ${rows.length.toLocaleString()} customers).`);
-    const highestRisk = segmentSource?.rows.slice().sort((a, b) => b.rate - a.rate)[0];
+    const highestRisk = segmentRows
+      .filter((row) => row.rate >= percentage(overallRate) + 5)
+      .sort((a, b) => b.rate - a.rate)[0];
     if (highestRisk && highestRisk.rate > percentage(overallRate)) {
       insights.push(`${titleCase(segmentSource?.dimension ?? "Customer segment")} ${highestRisk.label} has the highest observed churn at ${highestRisk.rate}%, ${Number((highestRisk.rate - percentage(overallRate)).toFixed(1))} points above the dataset average.`);
+    } else {
+      insights.push(`No normalized segment with at least ${MIN_SEGMENT_SAMPLE_SIZE} customers exceeds the overall churn rate by the 5-point risk threshold.`);
     }
     const strongest = correlations[0];
     if (strongest && Math.abs(strongest.value) >= 0.2) {
@@ -381,22 +442,29 @@ router.post("/analyze", (req, res) => {
     if (tenureColumn && monthlyChargesColumn) {
       insights.push(`The dashboard compares ${titleCase(tenureColumn)} with ${titleCase(monthlyChargesColumn)} to surface whether early-tenure or high-charge clusters have different churn patterns.`);
     }
+  } else {
+    insights.push(`A churn target was detected, but the dataset has only ${rows.length} observations, below the ${MIN_SEGMENT_SAMPLE_SIZE}-customer minimum for reliable segment insights.`);
   }
   if (missingCells || invalidValues || duplicateRows) {
     insights.push(`Data quality review found ${missingCells.toLocaleString()} missing cells, ${invalidValues.toLocaleString()} invalid typed values, and ${duplicateRows.toLocaleString()} duplicate rows before analysis.`);
   }
 
-  const recommendations = hasDetectedTarget && segmentSource?.rows.length
+  const recommendations = hasDetectedTarget
     ? (() => {
-        const highest = segmentSource.rows.slice().sort((a, b) => b.rate - a.rate)[0];
+        const result: Array<{ problem: string; evidence: string; action: string; objective: string; segment: string }> = [];
+        const highest = segmentRows
+          .filter((row) => row.rate >= percentage(overallRate) + 5)
+          .sort((a, b) => b.rate - a.rate)[0];
         const strongest = correlations[0];
-        const result = [{
-          problem: `${titleCase(segmentSource.dimension)} ${highest.label} is the highest-churn observed group.`,
-          evidence: `${highest.rate}% churn across ${highest.total.toLocaleString()} customers versus ${percentage(overallRate)}% overall.`,
-          action: "Prioritize a retention journey for this group, combining proactive outreach with a targeted service or plan review.",
-          objective: "Reduce preventable churn in the highest-risk observed segment.",
-          segment: `${titleCase(segmentSource.dimension)} ${highest.label}`,
-        }];
+        if (highest && segmentSource) {
+          result.push({
+            problem: `${titleCase(segmentSource.dimension)} ${highest.label} is the highest-churn validated group.`,
+            evidence: `${highest.rate}% churn across ${highest.total.toLocaleString()} customers versus ${percentage(overallRate)}% overall; the group meets the ${MIN_SEGMENT_SAMPLE_SIZE}-customer minimum.`,
+            action: "Prioritize a retention journey for this group, combining proactive outreach with a targeted service or plan review.",
+            objective: "Reduce preventable churn in a sufficiently sized, normalized segment.",
+            segment: `${titleCase(segmentSource.dimension)} ${highest.label}`,
+          });
+        }
         if (strongest && Math.abs(strongest.value) >= 0.2) {
           result.push({
             problem: `${titleCase(strongest.feature)} is associated with churn in this dataset.`,
@@ -404,6 +472,15 @@ router.post("/analyze", (req, res) => {
             action: "Use this field as a prioritization signal and validate the pattern with a controlled retention test.",
             objective: "Focus interventions where the strongest measured signal is present without treating it as causal.",
             segment: "Customers with elevated risk on this feature",
+          });
+        }
+        if (!result.length) {
+          result.push({
+            problem: "No category segment met the minimum sample size for a reliable risk recommendation.",
+            evidence: `All normalized category groups have fewer than ${MIN_SEGMENT_SAMPLE_SIZE} customers, so single-customer or otherwise sparse groups were not treated as high risk.`,
+            action: "Collect more observations before targeting a specific category with a retention intervention.",
+            objective: "Avoid acting on unstable churn rates caused by small samples.",
+            segment: "All customers",
           });
         }
         return result;
@@ -442,6 +519,8 @@ router.post("/analyze", (req, res) => {
       highCardinality,
       lowCardinality,
       issues: qualityIssues,
+      warnings: qualityWarnings,
+      minimumSegmentSampleSize: MIN_SEGMENT_SAMPLE_SIZE,
       columnStats: columnMeta.map(({ name, type, missing, unique, sample }) => ({ name, type, missing, unique, sample })),
     },
     target: {

@@ -55,6 +55,8 @@ export interface DataQuality {
   highCardinality: string[];
   lowCardinality: string[];
   issues: string[];
+  warnings: string[];
+  minimumSegmentSampleSize: number;
   columnStats: ColumnStat[];
 }
 
@@ -71,6 +73,7 @@ export interface BreakdownRow {
   churned: number;
   rate: number;
   average: number;
+  reliable: boolean;
 }
 
 export interface Breakdown {

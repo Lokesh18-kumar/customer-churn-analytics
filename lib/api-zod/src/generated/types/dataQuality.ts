@@ -16,5 +16,7 @@ export interface DataQuality {
   highCardinality: string[];
   lowCardinality: string[];
   issues: string[];
+  warnings: string[];
+  minimumSegmentSampleSize: number;
   columnStats: ColumnStat[];
 }

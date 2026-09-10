@@ -211,6 +211,12 @@ components:
           type: array
           items:
             type: string
+        warnings:
+          type: array
+          items:
+            type: string
+        minimumSegmentSampleSize:
+          type: integer
         columnStats:
           type: array
           items:
@@ -224,6 +230,8 @@ components:
         - highCardinality
         - lowCardinality
         - issues
+        - warnings
+        - minimumSegmentSampleSize
         - columnStats
     ColumnStat:
       type: object
@@ -285,12 +293,15 @@ components:
           type: number
         average:
           type: number
+        reliable:
+          type: boolean
       required:
         - label
         - total
         - churned
         - rate
         - average
+        - reliable
     DistributionBin:
       type: object
       properties:

@@ -50,6 +50,8 @@ export const AnalyzeDatasetResponse = zod.object({
   "highCardinality": zod.array(zod.string()),
   "lowCardinality": zod.array(zod.string()),
   "issues": zod.array(zod.string()),
+  "warnings": zod.array(zod.string()),
+  "minimumSegmentSampleSize": zod.number().int(),
   "columnStats": zod.array(zod.object({
   "name": zod.string(),
   "type": zod.string(),
@@ -72,7 +74,8 @@ export const AnalyzeDatasetResponse = zod.object({
   "total": zod.number().int(),
   "churned": zod.number().int(),
   "rate": zod.number(),
-  "average": zod.number()
+  "average": zod.number(),
+  "reliable": zod.boolean()
 }))
 })),
   "distributions": zod.record(zod.string(), zod.array(zod.object({
