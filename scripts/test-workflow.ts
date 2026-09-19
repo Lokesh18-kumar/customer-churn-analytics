@@ -1,6 +1,6 @@
 import Papa from "papaparse";
-import { analyzeDataset } from "../artifacts/churn-analytics/src/analytics/analyzeDataset";
-import type { AnalyzeRequest } from "../artifacts/churn-analytics/src/analytics/types";
+import { analyzeDataset } from "../src/analytics/analyzeDataset";
+import type { AnalyzeRequest } from "../src/analytics/types";
 
 function buildSyntheticCSV(rowCount = 500): string {
   const contracts = ["Month-to-month", "One year", "Two year"];
