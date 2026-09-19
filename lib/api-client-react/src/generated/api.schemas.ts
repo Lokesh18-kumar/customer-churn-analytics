@@ -111,6 +111,71 @@ export interface Recommendation {
   segment: string;
 }
 
+export interface GroupRate {
+  group: string;
+  total: number;
+  churned: number;
+  churnRate: number;
+  reliable: boolean;
+}
+
+export interface StatisticalTest {
+  feature: string;
+  variableType: string;
+  test: string;
+  statisticName: string;
+  statistic: number;
+  pValue: number | null;
+  adjustedPValue: number | null;
+  effectSize: number | null;
+  effectSizeLabel: string;
+  significant: boolean;
+  sampleSize: number;
+  groups: GroupRate[];
+  notes: string;
+}
+
+export interface StatisticalAnalysis {
+  tests: StatisticalTest[];
+  correction: string;
+  alpha: number;
+  notes: string[];
+}
+
+export interface ConfusionMatrix {
+  truePositive: number;
+  falsePositive: number;
+  trueNegative: number;
+  falseNegative: number;
+}
+
+export interface FeatureImportance {
+  feature: string;
+  importance: number;
+}
+
+export interface ModelResult {
+  model: string;
+  accuracy: number;
+  precision: number;
+  recall: number;
+  f1: number;
+  rocAuc: number;
+  confusionMatrix: ConfusionMatrix;
+  featureImportance: FeatureImportance[];
+}
+
+export interface PredictiveModeling {
+  targetDetected: boolean;
+  bestModel: string;
+  trainSize: number;
+  testSize: number;
+  models: ModelResult[];
+  methodology: string[];
+  leakageChecks: string[];
+  notes: string[];
+}
+
 export interface AnalyzeResponse {
   fileName: string;
   overview: DatasetOverview;
@@ -125,6 +190,10 @@ export interface AnalyzeResponse {
   insights: string[];
   recommendations: Recommendation[];
   transformations: string[];
+  statisticalAnalysis: StatisticalAnalysis;
+  predictiveModeling: PredictiveModeling;
+  methodology: string[];
+  limitations: string[];
 }
 
 export interface ErrorResponse {

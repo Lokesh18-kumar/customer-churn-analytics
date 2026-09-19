@@ -33,6 +33,7 @@ Retain/IQ is a CSV-first customer churn analytics dashboard that profiles data q
 - Analysis preserves outliers and duplicate/missing-value findings as explicit quality signals instead of hiding cleanup decisions.
 - The API detects common churn target names and derives all dashboard values from the uploaded dataset.
 - Categorical analysis records raw casing/whitespace variants, normalizes before grouping, and requires five observations before a group can drive risk recommendations.
+- Statistical inference uses Welch tests, chi-square/Fisher tests, Benjamini–Hochberg correction, and effect sizes; prediction uses a train-only-preprocessed stratified holdout benchmark across three classifiers.
 - Report export uses a readable Markdown brief plus browser print/PDF support so users can keep both evidence and presentation formats.
 
 ## Product

@@ -132,6 +132,18 @@ components:
           type: array
           items:
             type: string
+        statisticalAnalysis:
+          $ref: "#/components/schemas/StatisticalAnalysis"
+        predictiveModeling:
+          $ref: "#/components/schemas/PredictiveModeling"
+        methodology:
+          type: array
+          items:
+            type: string
+        limitations:
+          type: array
+          items:
+            type: string
       required:
         - fileName
         - overview
@@ -146,6 +158,10 @@ components:
         - insights
         - recommendations
         - transformations
+        - statisticalAnalysis
+        - predictiveModeling
+        - methodology
+        - limitations
     DatasetOverview:
       type: object
       properties:
@@ -392,4 +408,183 @@ components:
           type: string
       required:
         - message
+    StatisticalAnalysis:
+      type: object
+      properties:
+        tests:
+          type: array
+          items:
+            $ref: "#/components/schemas/StatisticalTest"
+        correction:
+          type: string
+        alpha:
+          type: number
+        notes:
+          type: array
+          items:
+            type: string
+      required:
+        - tests
+        - correction
+        - alpha
+        - notes
+    StatisticalTest:
+      type: object
+      properties:
+        feature:
+          type: string
+        variableType:
+          type: string
+        test:
+          type: string
+        statisticName:
+          type: string
+        statistic:
+          type: number
+        pValue:
+          nullable: true
+          type: number
+        adjustedPValue:
+          nullable: true
+          type: number
+        effectSize:
+          nullable: true
+          type: number
+        effectSizeLabel:
+          type: string
+        significant:
+          type: boolean
+        sampleSize:
+          type: integer
+        groups:
+          type: array
+          items:
+            $ref: "#/components/schemas/GroupRate"
+        notes:
+          type: string
+      required:
+        - feature
+        - variableType
+        - test
+        - statisticName
+        - statistic
+        - pValue
+        - adjustedPValue
+        - effectSize
+        - effectSizeLabel
+        - significant
+        - sampleSize
+        - groups
+        - notes
+    GroupRate:
+      type: object
+      properties:
+        group:
+          type: string
+        total:
+          type: integer
+        churned:
+          type: integer
+        churnRate:
+          type: number
+        reliable:
+          type: boolean
+      required:
+        - group
+        - total
+        - churned
+        - churnRate
+        - reliable
+    PredictiveModeling:
+      type: object
+      properties:
+        targetDetected:
+          type: boolean
+        bestModel:
+          type: string
+        trainSize:
+          type: integer
+        testSize:
+          type: integer
+        models:
+          type: array
+          items:
+            $ref: "#/components/schemas/ModelResult"
+        methodology:
+          type: array
+          items:
+            type: string
+        leakageChecks:
+          type: array
+          items:
+            type: string
+        notes:
+          type: array
+          items:
+            type: string
+      required:
+        - targetDetected
+        - bestModel
+        - trainSize
+        - testSize
+        - models
+        - methodology
+        - leakageChecks
+        - notes
+    ModelResult:
+      type: object
+      properties:
+        model:
+          type: string
+        accuracy:
+          type: number
+        precision:
+          type: number
+        recall:
+          type: number
+        f1:
+          type: number
+        rocAuc:
+          type: number
+        confusionMatrix:
+          $ref: "#/components/schemas/ConfusionMatrix"
+        featureImportance:
+          type: array
+          items:
+            $ref: "#/components/schemas/FeatureImportance"
+      required:
+        - model
+        - accuracy
+        - precision
+        - recall
+        - f1
+        - rocAuc
+        - confusionMatrix
+        - featureImportance
+    ConfusionMatrix:
+      type: object
+      properties:
+        truePositive:
+          type: integer
+        falsePositive:
+          type: integer
+        trueNegative:
+          type: integer
+        falseNegative:
+          type: integer
+      required:
+        - truePositive
+        - falsePositive
+        - trueNegative
+        - falseNegative
+    FeatureImportance:
+      type: object
+      properties:
+        feature:
+          type: string
+        importance:
+          type: number
+      required:
+        - feature
+        - importance
 

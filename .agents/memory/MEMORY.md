@@ -1,0 +1,1 @@
+- [Statistical evidence policy](statistical-evidence-policy.md) — report sparse tests as not estimable and keep inference separate from predictive importance and causation.

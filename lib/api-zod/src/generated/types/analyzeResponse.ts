@@ -11,9 +11,11 @@ import type { Breakdown } from './breakdown';
 import type { Correlation } from './correlation';
 import type { DataQuality } from './dataQuality';
 import type { DatasetOverview } from './datasetOverview';
+import type { PredictiveModeling } from './predictiveModeling';
 import type { Recommendation } from './recommendation';
 import type { ScatterPoint } from './scatterPoint';
 import type { Segment } from './segment';
+import type { StatisticalAnalysis } from './statisticalAnalysis';
 import type { TargetInfo } from './targetInfo';
 
 export interface AnalyzeResponse {
@@ -30,4 +32,8 @@ export interface AnalyzeResponse {
   insights: string[];
   recommendations: Recommendation[];
   transformations: string[];
+  statisticalAnalysis: StatisticalAnalysis;
+  predictiveModeling: PredictiveModeling;
+  methodology: string[];
+  limitations: string[];
 }

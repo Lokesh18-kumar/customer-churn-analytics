@@ -110,7 +110,62 @@ export const AnalyzeDatasetResponse = zod.object({
   "objective": zod.string(),
   "segment": zod.string()
 })),
-  "transformations": zod.array(zod.string())
+  "transformations": zod.array(zod.string()),
+  "statisticalAnalysis": zod.object({
+  "tests": zod.array(zod.object({
+  "feature": zod.string(),
+  "variableType": zod.string(),
+  "test": zod.string(),
+  "statisticName": zod.string(),
+  "statistic": zod.number(),
+  "pValue": zod.number().nullable(),
+  "adjustedPValue": zod.number().nullable(),
+  "effectSize": zod.number().nullable(),
+  "effectSizeLabel": zod.string(),
+  "significant": zod.boolean(),
+  "sampleSize": zod.number().int(),
+  "groups": zod.array(zod.object({
+  "group": zod.string(),
+  "total": zod.number().int(),
+  "churned": zod.number().int(),
+  "churnRate": zod.number(),
+  "reliable": zod.boolean()
+})),
+  "notes": zod.string()
+})),
+  "correction": zod.string(),
+  "alpha": zod.number(),
+  "notes": zod.array(zod.string())
+}),
+  "predictiveModeling": zod.object({
+  "targetDetected": zod.boolean(),
+  "bestModel": zod.string(),
+  "trainSize": zod.number().int(),
+  "testSize": zod.number().int(),
+  "models": zod.array(zod.object({
+  "model": zod.string(),
+  "accuracy": zod.number(),
+  "precision": zod.number(),
+  "recall": zod.number(),
+  "f1": zod.number(),
+  "rocAuc": zod.number(),
+  "confusionMatrix": zod.object({
+  "truePositive": zod.number().int(),
+  "falsePositive": zod.number().int(),
+  "trueNegative": zod.number().int(),
+  "falseNegative": zod.number().int()
+}),
+  "featureImportance": zod.array(zod.object({
+  "feature": zod.string(),
+  "importance": zod.number()
+}))
+})),
+  "methodology": zod.array(zod.string()),
+  "leakageChecks": zod.array(zod.string()),
+  "notes": zod.array(zod.string())
+}),
+  "methodology": zod.array(zod.string()),
+  "limitations": zod.array(zod.string())
 })
 
 
