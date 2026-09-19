@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { useAnalyzeDataset, useHealthCheck, type AnalyzeResponse } from '@workspace/api-client-react';
+import { analyzeDataset, type AnalyzeResponse } from './analytics';
 import Papa from 'papaparse';
 import { CSVLink } from 'react-csv';
 import {
@@ -75,19 +75,32 @@ function AppShell() {
   const [lastRefreshed, setLastRefreshed] = useState<Date>();
   const [lastRequest, setLastRequest] = useState<{ fileName: string; columns: string[]; rows: (string | number | boolean | null)[][] }>();
   const [uploadError, setUploadError] = useState('');
-  const mutation = useAnalyzeDataset();
-  const health = useHealthCheck();
-  const loading = mutation.isPending;
+  const [loading, setLoading] = useState(false);
+
+  const executeAnalysis = async (request: { fileName: string; columns: string[]; rows: (string | number | boolean | null)[][] }) => {
+    setLoading(true);
+    setUploadError('');
+    try {
+      const data = await analyzeDataset(request);
+      setAnalysis(data);
+      setLastRefreshed(new Date());
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'We could not analyze that dataset.';
+      setUploadError(message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => { document.documentElement.classList.toggle('dark', isDark); }, [isDark]);
   useEffect(() => { const close = (e: MouseEvent) => { if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) setMenuOpen(false); }; document.addEventListener('mousedown', close); return () => document.removeEventListener('mousedown', close); }, []);
   useEffect(() => {
     if (!autoRefresh || !analysis || !lastRequest) return;
     const timer = window.setInterval(() => {
-      mutation.mutate({ data: lastRequest }, { onSuccess: (data) => { setAnalysis(data); setLastRefreshed(new Date()); } });
+      executeAnalysis(lastRequest);
     }, intervalMs);
     return () => window.clearInterval(timer);
-  }, [autoRefresh, analysis, intervalMs, lastRequest, mutation]);
+  }, [autoRefresh, analysis, intervalMs, lastRequest]);
 
   const processFile = (file: File) => {
     setUploadError('');
@@ -96,15 +109,16 @@ function AppShell() {
       const columns = rows[0].map((v) => String(v ?? '').trim()); const dataRows = rows.slice(1).map(row => columns.map((_, i) => row[i] ?? null));
       const request = { fileName: file.name, columns, rows: dataRows };
       setLastRequest(request);
-      mutation.mutate({ data: request }, { onSuccess: (data) => { setAnalysis(data); setLastRefreshed(new Date()); } });
+      executeAnalysis(request);
     }, error: () => setUploadError('We could not read that CSV. Check its encoding and delimiter, then try again.') });
   };
   const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => { const file = e.target.files?.[0]; if (file) processFile(file); e.target.value = ''; };
   const refresh = () => {
-    if (lastRequest && !mutation.isPending) {
-      mutation.mutate({ data: lastRequest }, { onSuccess: (data) => { setAnalysis(data); setLastRefreshed(new Date()); } });
+    if (lastRequest && !loading) {
+      executeAnalysis(lastRequest);
     }
   };
+
   const exportReport = () => {
     if (!analysis) return;
     const lines = [
@@ -177,7 +191,7 @@ function AppShell() {
     </div></header>
     {uploadError && <div className="mx-auto mt-4 flex max-w-[1440px] items-center gap-2 px-4 text-sm text-destructive sm:px-8"><AlertCircle size={16} />{uploadError}</div>}
     {loading ? <LoadingView /> : analysis ? <Dashboard data={analysis} lastRefreshed={lastRefreshed} onExportReport={exportReport} /> : <EmptyState onUpload={() => fileRef.current?.click()} />}
-    <footer className="mx-auto flex max-w-[1440px] items-center justify-between px-4 pb-7 pt-3 text-[11px] text-muted-foreground sm:px-8"><span className="flex items-center gap-2">Retain/IQ · Evidence before action <span className="inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5"><i className={`h-1.5 w-1.5 rounded-full ${health.data?.status === 'ok' ? 'bg-primary' : 'bg-accent'}`} />{health.data?.status === 'ok' ? 'API ready' : 'Checking API'}</span></span><span>{lastRefreshed ? `Last analyzed ${lastRefreshed.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : 'No dataset loaded'}</span></footer>
+    <footer className="mx-auto flex max-w-[1440px] items-center justify-between px-4 pb-7 pt-3 text-[11px] text-muted-foreground sm:px-8"><span className="flex items-center gap-2">Retain/IQ · Evidence before action <span className="inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5"><i className="h-1.5 w-1.5 rounded-full bg-primary" />Local engine ready</span></span><span>{lastRefreshed ? `Last analyzed ${lastRefreshed.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : 'No dataset loaded'}</span></footer>
   </div>;
 }
 
