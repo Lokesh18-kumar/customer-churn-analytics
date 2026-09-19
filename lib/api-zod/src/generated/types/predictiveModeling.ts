@@ -5,14 +5,25 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { ClassDistribution } from './classDistribution';
 import type { ModelResult } from './modelResult';
+import type { PrecisionRecallCurve } from './precisionRecallCurve';
+import type { ThresholdMetric } from './thresholdMetric';
 
 export interface PredictiveModeling {
   targetDetected: boolean;
+  classDistribution: ClassDistribution;
   bestModel: string;
   trainSize: number;
   testSize: number;
   models: ModelResult[];
+  adjustedModels: ModelResult[];
+  thresholdAnalysis: ThresholdMetric[];
+  precisionRecallCurves: PrecisionRecallCurve[];
+  recommendedModel: string;
+  recommendedThreshold: number;
+  selectionRationale: string;
+  classImbalanceHandled: boolean;
   methodology: string[];
   leakageChecks: string[];
   notes: string[];

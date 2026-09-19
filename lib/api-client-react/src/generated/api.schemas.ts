@@ -142,6 +142,14 @@ export interface StatisticalAnalysis {
   notes: string[];
 }
 
+export interface ClassDistribution {
+  positiveLabel: string;
+  positive: number;
+  negative: number;
+  positiveRate: number;
+  imbalanceRatio: number;
+}
+
 export interface ConfusionMatrix {
   truePositive: number;
   falsePositive: number;
@@ -165,12 +173,41 @@ export interface ModelResult {
   featureImportance: FeatureImportance[];
 }
 
+export interface ThresholdMetric {
+  model: string;
+  threshold: number;
+  precision: number;
+  recall: number;
+  f1: number;
+  predictedPositiveRate: number;
+  confusionMatrix: ConfusionMatrix;
+}
+
+export interface PrecisionRecallPoint {
+  threshold: number;
+  precision: number;
+  recall: number;
+}
+
+export interface PrecisionRecallCurve {
+  model: string;
+  points: PrecisionRecallPoint[];
+}
+
 export interface PredictiveModeling {
   targetDetected: boolean;
+  classDistribution: ClassDistribution;
   bestModel: string;
   trainSize: number;
   testSize: number;
   models: ModelResult[];
+  adjustedModels: ModelResult[];
+  thresholdAnalysis: ThresholdMetric[];
+  precisionRecallCurves: PrecisionRecallCurve[];
+  recommendedModel: string;
+  recommendedThreshold: number;
+  selectionRationale: string;
+  classImbalanceHandled: boolean;
   methodology: string[];
   leakageChecks: string[];
   notes: string[];

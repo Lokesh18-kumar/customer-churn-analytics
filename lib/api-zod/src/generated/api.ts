@@ -139,6 +139,13 @@ export const AnalyzeDatasetResponse = zod.object({
 }),
   "predictiveModeling": zod.object({
   "targetDetected": zod.boolean(),
+  "classDistribution": zod.object({
+  "positiveLabel": zod.string(),
+  "positive": zod.number().int(),
+  "negative": zod.number().int(),
+  "positiveRate": zod.number(),
+  "imbalanceRatio": zod.number()
+}),
   "bestModel": zod.string(),
   "trainSize": zod.number().int(),
   "testSize": zod.number().int(),
@@ -160,6 +167,50 @@ export const AnalyzeDatasetResponse = zod.object({
   "importance": zod.number()
 }))
 })),
+  "adjustedModels": zod.array(zod.object({
+  "model": zod.string(),
+  "accuracy": zod.number(),
+  "precision": zod.number(),
+  "recall": zod.number(),
+  "f1": zod.number(),
+  "rocAuc": zod.number(),
+  "confusionMatrix": zod.object({
+  "truePositive": zod.number().int(),
+  "falsePositive": zod.number().int(),
+  "trueNegative": zod.number().int(),
+  "falseNegative": zod.number().int()
+}),
+  "featureImportance": zod.array(zod.object({
+  "feature": zod.string(),
+  "importance": zod.number()
+}))
+})),
+  "thresholdAnalysis": zod.array(zod.object({
+  "model": zod.string(),
+  "threshold": zod.number(),
+  "precision": zod.number(),
+  "recall": zod.number(),
+  "f1": zod.number(),
+  "predictedPositiveRate": zod.number(),
+  "confusionMatrix": zod.object({
+  "truePositive": zod.number().int(),
+  "falsePositive": zod.number().int(),
+  "trueNegative": zod.number().int(),
+  "falseNegative": zod.number().int()
+})
+})),
+  "precisionRecallCurves": zod.array(zod.object({
+  "model": zod.string(),
+  "points": zod.array(zod.object({
+  "threshold": zod.number(),
+  "precision": zod.number(),
+  "recall": zod.number()
+}))
+})),
+  "recommendedModel": zod.string(),
+  "recommendedThreshold": zod.number(),
+  "selectionRationale": zod.string(),
+  "classImbalanceHandled": zod.boolean(),
   "methodology": zod.array(zod.string()),
   "leakageChecks": zod.array(zod.string()),
   "notes": zod.array(zod.string())

@@ -500,6 +500,8 @@ components:
       properties:
         targetDetected:
           type: boolean
+        classDistribution:
+          $ref: "#/components/schemas/ClassDistribution"
         bestModel:
           type: string
         trainSize:
@@ -510,6 +512,26 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ModelResult"
+        adjustedModels:
+          type: array
+          items:
+            $ref: "#/components/schemas/ModelResult"
+        thresholdAnalysis:
+          type: array
+          items:
+            $ref: "#/components/schemas/ThresholdMetric"
+        precisionRecallCurves:
+          type: array
+          items:
+            $ref: "#/components/schemas/PrecisionRecallCurve"
+        recommendedModel:
+          type: string
+        recommendedThreshold:
+          type: number
+        selectionRationale:
+          type: string
+        classImbalanceHandled:
+          type: boolean
         methodology:
           type: array
           items:
@@ -524,10 +546,18 @@ components:
             type: string
       required:
         - targetDetected
+        - classDistribution
         - bestModel
         - trainSize
         - testSize
         - models
+        - adjustedModels
+        - thresholdAnalysis
+        - precisionRecallCurves
+        - recommendedModel
+        - recommendedThreshold
+        - selectionRationale
+        - classImbalanceHandled
         - methodology
         - leakageChecks
         - notes
@@ -561,6 +591,75 @@ components:
         - rocAuc
         - confusionMatrix
         - featureImportance
+    ClassDistribution:
+      type: object
+      properties:
+        positiveLabel:
+          type: string
+        positive:
+          type: integer
+        negative:
+          type: integer
+        positiveRate:
+          type: number
+        imbalanceRatio:
+          type: number
+      required:
+        - positiveLabel
+        - positive
+        - negative
+        - positiveRate
+        - imbalanceRatio
+    ThresholdMetric:
+      type: object
+      properties:
+        model:
+          type: string
+        threshold:
+          type: number
+        precision:
+          type: number
+        recall:
+          type: number
+        f1:
+          type: number
+        predictedPositiveRate:
+          type: number
+        confusionMatrix:
+          $ref: "#/components/schemas/ConfusionMatrix"
+      required:
+        - model
+        - threshold
+        - precision
+        - recall
+        - f1
+        - predictedPositiveRate
+        - confusionMatrix
+    PrecisionRecallCurve:
+      type: object
+      properties:
+        model:
+          type: string
+        points:
+          type: array
+          items:
+            $ref: "#/components/schemas/PrecisionRecallPoint"
+      required:
+        - model
+        - points
+    PrecisionRecallPoint:
+      type: object
+      properties:
+        threshold:
+          type: number
+        precision:
+          type: number
+        recall:
+          type: number
+      required:
+        - threshold
+        - precision
+        - recall
     ConfusionMatrix:
       type: object
       properties:

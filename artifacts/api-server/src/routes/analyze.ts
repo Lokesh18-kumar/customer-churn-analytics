@@ -482,10 +482,10 @@ function standardize(train: number[][], test: number[][]) {
   return { train: transform(train), test: transform(test) };
 }
 
-function logisticPredict(train: number[][], labels: boolean[], test: number[][]) {
+function logisticPredict(train: number[][], labels: boolean[], test: number[][], positiveWeight = 1, negativeWeight = 1) {
   const featureCount = train[0]?.length ?? 0;
   const weights = Array.from({ length: featureCount }, () => 0);
-  let bias = Math.log((labels.filter(Boolean).length + 1) / (labels.filter((label) => !label).length + 1));
+  let bias = Math.log(((labels.filter(Boolean).length * positiveWeight) + 1) / ((labels.filter((label) => !label).length * negativeWeight) + 1));
   const learningRate = 0.08;
   const regularization = 0.01;
   for (let epoch = 0; epoch < 450; epoch += 1) {
@@ -494,8 +494,9 @@ function logisticPredict(train: number[][], labels: boolean[], test: number[][])
     train.forEach((row, index) => {
       const prediction = sigmoid(bias + row.reduce((sum, value, column) => sum + value * (weights[column] ?? 0), 0));
       const error = prediction - (labels[index] ? 1 : 0);
-      biasGradient += error;
-      row.forEach((value, column) => { gradient[column] += error * value; });
+      const observationWeight = labels[index] ? positiveWeight : negativeWeight;
+      biasGradient += error * observationWeight;
+      row.forEach((value, column) => { gradient[column] += error * value * observationWeight; });
     });
     const scale = 1 / Math.max(1, train.length);
     weights.forEach((_, column) => { weights[column] -= learningRate * (gradient[column] * scale + regularization * (weights[column] ?? 0)); });
@@ -508,12 +509,12 @@ function logisticPredict(train: number[][], labels: boolean[], test: number[][])
   };
 }
 
-function gaussianNaiveBayes(train: number[][], labels: boolean[], test: number[][]) {
+function gaussianNaiveBayes(train: number[][], labels: boolean[], test: number[][], balancedPrior = false) {
   const classes = [false, true];
   const stats = classes.map((label) => {
     const rows = train.filter((_, index) => labels[index] === label);
     return {
-      prior: (rows.length + 1) / (train.length + 2),
+      prior: balancedPrior ? 0.5 : (rows.length + 1) / (train.length + 2),
       mean: train[0]?.map((_, column) => average(rows.map((row) => row[column] ?? 0))) ?? [],
       variance: train[0]?.map((_, column) => Math.max(1e-4, sampleVariance(rows.map((row) => row[column] ?? 0)))) ?? [],
     };
@@ -576,11 +577,18 @@ function treePredict(node: TreeNode, row: number[]): number {
     : treePredict(node.right ?? { probability: 0 }, row);
 }
 
-function randomForestPredict(train: number[][], labels: boolean[], test: number[][], random: () => number) {
+function randomForestPredict(train: number[][], labels: boolean[], test: number[][], random: () => number, balancedBootstrap = false) {
   const trees: TreeNode[] = [];
   const aggregateImportance = Array.from({ length: train[0]?.length ?? 0 }, () => 0);
+  const positiveRows = labels.map((label, index) => label ? index : -1).filter((index) => index >= 0);
+  const negativeRows = labels.map((label, index) => !label ? index : -1).filter((index) => index >= 0);
   for (let tree = 0; tree < 35; tree += 1) {
-    const bootstrap = Array.from({ length: train.length }, () => Math.floor(random() * train.length));
+    const bootstrap = balancedBootstrap
+      ? Array.from({ length: Math.max(1, Math.min(positiveRows.length, negativeRows.length) * 2) }, (_, index) => {
+          const pool = index % 2 === 0 ? positiveRows : negativeRows;
+          return pool[Math.floor(random() * pool.length)] ?? 0;
+        })
+      : Array.from({ length: train.length }, () => Math.floor(random() * train.length));
     trees.push(buildTree(train, labels, bootstrap, 0, random, aggregateImportance));
   }
   return {
@@ -590,7 +598,18 @@ function randomForestPredict(train: number[][], labels: boolean[], test: number[
 }
 
 function modelMetrics(labels: boolean[], scores: number[]) {
-  const predicted = scores.map((score) => score >= 0.5);
+  const thresholdMetrics = metricsAtThreshold(labels, scores, 0.5);
+  const positives = labels.filter(Boolean).length;
+  const negatives = labels.length - positives;
+  const ordered = scores.map((score, index) => ({ score, label: labels[index] ? 1 : 0 })).sort((a, b) => a.score - b.score);
+  let rankSum = 0;
+  ordered.forEach((item, index) => { if (item.label) rankSum += index + 1; });
+  const rocAuc = positives && negatives ? (rankSum - (positives * (positives + 1)) / 2) / (positives * negatives) : 0.5;
+  return { ...thresholdMetrics, rocAuc: round(rocAuc) };
+}
+
+function metricsAtThreshold(labels: boolean[], scores: number[], threshold: number) {
+  const predicted = scores.map((score) => score >= threshold);
   let truePositive = 0;
   let falsePositive = 0;
   let trueNegative = 0;
@@ -606,18 +625,12 @@ function modelMetrics(labels: boolean[], scores: number[]) {
   const precision = truePositive / Math.max(1, truePositive + falsePositive);
   const recall = truePositive / Math.max(1, truePositive + falseNegative);
   const f1 = precision + recall ? (2 * precision * recall) / (precision + recall) : 0;
-  const positives = labels.filter(Boolean).length;
-  const negatives = labels.length - positives;
-  const ordered = scores.map((score, index) => ({ score, label: labels[index] ? 1 : 0 })).sort((a, b) => a.score - b.score);
-  let rankSum = 0;
-  ordered.forEach((item, index) => { if (item.label) rankSum += index + 1; });
-  const rocAuc = positives && negatives ? (rankSum - (positives * (positives + 1)) / 2) / (positives * negatives) : 0.5;
   return {
     accuracy: round(accuracy),
     precision: round(precision),
     recall: round(recall),
     f1: round(f1),
-    rocAuc: round(rocAuc),
+    predictedPositiveRate: round(predicted.filter(Boolean).length / Math.max(1, labels.length)),
     confusionMatrix: { truePositive, falsePositive, trueNegative, falseNegative },
   };
 }
@@ -629,12 +642,15 @@ function buildPredictiveModeling(
   churnFlags: boolean[],
   targetColumn: string,
   categoricalNormalizers: Map<string, Map<string, string>>,
+  positiveLabel: string,
 ) {
   const methodology = [
     "Rows with a missing churn target are excluded from modeling; numeric features are median-imputed and standardized using training data only.",
     "Categorical levels are learned from the training split; unseen test levels become all-zero one-hot vectors.",
     "A deterministic stratified 80/20 train/test split preserves the churn proportion as much as possible.",
-    "Models are compared on the held-out test set: logistic regression, Gaussian naive Bayes, and a 35-tree random forest.",
+    "Baseline models are compared on the held-out test set: logistic regression, Gaussian naive Bayes, and a 35-tree random forest.",
+    "When the negative-to-positive class ratio is at least 1.5, adjusted variants use positive class weighting, balanced random-forest bootstraps, and a balanced naive-Bayes prior.",
+    "Thresholds from 0.10 through 0.80 are evaluated explicitly; the retention recommendation balances F1 and recall rather than selecting by ROC-AUC alone.",
   ];
   const leakageChecks = [
     "The churn target column is excluded from the feature matrix.",
@@ -643,7 +659,24 @@ function buildPredictiveModeling(
     "Test labels are used only for final metric calculation, never for fitting.",
   ];
   if (!targetColumn || !columnMeta.some((meta) => meta.name === targetColumn)) {
-    return { targetDetected: false, bestModel: "Not available", trainSize: 0, testSize: 0, models: [], methodology, leakageChecks, notes: ["A churn target is required before predictive modeling can run."] };
+    return {
+      targetDetected: false,
+      classDistribution: { positiveLabel, positive: 0, negative: 0, positiveRate: 0, imbalanceRatio: 0 },
+      bestModel: "Not available",
+      trainSize: 0,
+      testSize: 0,
+      models: [],
+      adjustedModels: [],
+      thresholdAnalysis: [],
+      precisionRecallCurves: [],
+      recommendedModel: "Not available",
+      recommendedThreshold: 0.5,
+      selectionRationale: "A churn target is required before model comparison can run.",
+      classImbalanceHandled: false,
+      methodology,
+      leakageChecks,
+      notes: ["A churn target is required before predictive modeling can run."],
+    };
   }
   const specs: FeatureSpec[] = columnMeta
     .filter((meta) => meta.name !== targetColumn && (meta.type === "numeric" || meta.type === "categorical") && !isIdentifierLike(meta.name, meta))
@@ -652,13 +685,28 @@ function buildPredictiveModeling(
   const validIndices = paddedRows.map((_, index) => index).filter((index) => !isMissing(paddedRows[index]?.[columns.indexOf(targetColumn)]));
   const positiveCount = validIndices.filter((index) => churnFlags[index]).length;
   const negativeCount = validIndices.length - positiveCount;
+  const classDistribution = {
+    positiveLabel,
+    positive: positiveCount,
+    negative: negativeCount,
+    positiveRate: round(positiveCount / Math.max(1, validIndices.length)),
+    imbalanceRatio: round(negativeCount / Math.max(1, positiveCount)),
+  };
   if (validIndices.length < 20 || positiveCount < 5 || negativeCount < 5 || !specs.length) {
     return {
       targetDetected: true,
+      classDistribution,
       bestModel: "Not available",
       trainSize: 0,
       testSize: 0,
       models: [],
+      adjustedModels: [],
+      thresholdAnalysis: [],
+      precisionRecallCurves: [],
+      recommendedModel: "Not available",
+      recommendedThreshold: 0.5,
+      selectionRationale: "The labeled sample is too small for a stable baseline-versus-adjusted comparison.",
+      classImbalanceHandled: false,
       methodology,
       leakageChecks,
       notes: ["At least 20 labeled rows and at least 5 churned and 5 retained customers are required for a stable model comparison."],
@@ -668,7 +716,6 @@ function buildPredictiveModeling(
   const shuffled = shuffle(validIndices, random);
   const maxRows = 20_000;
   const selected = shuffled.length > maxRows ? shuffled.slice(0, maxRows) : shuffled;
-  const selectedLabels = selected.map((index) => churnFlags[index]);
   const positiveRows = selected.filter((index) => churnFlags[index]);
   const negativeRows = selected.filter((index) => !churnFlags[index]);
   const testPositive = new Set(shuffle(positiveRows, random).slice(0, Math.max(1, Math.floor(positiveRows.length * 0.2))));
@@ -716,20 +763,24 @@ function buildPredictiveModeling(
   const encoded = standardize(encode(rawTrain), encode(rawTest));
   const trainLabels = trainIndices.map((index) => churnFlags[index]);
   const testLabels = testIndices.map((index) => churnFlags[index]);
-  const logistic = logisticPredict(encoded.train, trainLabels, encoded.test);
-  const naiveBayes = gaussianNaiveBayes(encoded.train, trainLabels, encoded.test);
-  const forest = randomForestPredict(encoded.train, trainLabels, encoded.test, random);
-  const modelData = [
-    { model: "Logistic Regression", predictions: logistic.predictions, importance: logistic.importance },
-    { model: "Random Forest", predictions: forest.predictions, importance: forest.importance },
-    { model: "Gaussian Naive Bayes", predictions: naiveBayes.predictions, importance: naiveBayes.importance },
+  const imbalanceJustified = classDistribution.imbalanceRatio >= 1.5;
+  const positiveWeight = imbalanceJustified ? trainLabels.length / (2 * Math.max(1, trainLabels.filter(Boolean).length)) : 1;
+  const negativeWeight = imbalanceJustified ? trainLabels.length / (2 * Math.max(1, trainLabels.filter((label) => !label).length)) : 1;
+  const baselineModelData = [
+    { model: "Logistic Regression", predictions: logisticPredict(encoded.train, trainLabels, encoded.test), },
+    { model: "Random Forest", predictions: randomForestPredict(encoded.train, trainLabels, encoded.test, random), },
+    { model: "Gaussian Naive Bayes", predictions: gaussianNaiveBayes(encoded.train, trainLabels, encoded.test), },
   ];
-  const models = modelData.map((model) => {
+  const adjustedModelData = [
+    { model: "Logistic Regression · imbalance-adjusted", predictions: logisticPredict(encoded.train, trainLabels, encoded.test, positiveWeight, negativeWeight), },
+    { model: "Random Forest · balanced bootstrap", predictions: randomForestPredict(encoded.train, trainLabels, encoded.test, random, imbalanceJustified), },
+    { model: "Gaussian Naive Bayes · balanced prior", predictions: gaussianNaiveBayes(encoded.train, trainLabels, encoded.test, imbalanceJustified), },
+  ];
+  const modelResults = (modelData: Array<{ model: string; predictions: number[]; importance: Array<{ feature: number; importance: number }> | number[] }>) => modelData.map((model) => {
     const metrics = modelMetrics(testLabels, model.predictions);
-    const totalImportance = model.importance.reduce<number>((sum, value) => {
-      const importance = typeof value === "number" ? value : value.importance;
-      return sum + importance;
-    }, 0) || 1;
+    const totalImportance = model.predictions.length
+      ? model.importance.reduce<number>((sum, value) => sum + (typeof value === "number" ? value : value.importance), 0) || 1
+      : 1;
     const featureImportance = model.importance
       .map((value, index) => ({
         feature: featureNames[index] ?? `Feature ${index + 1}`,
@@ -737,19 +788,67 @@ function buildPredictiveModeling(
       }))
       .sort((a, b) => b.importance - a.importance)
       .slice(0, 10);
-    return { model: model.model, ...metrics, featureImportance };
+    return { model: model.model, accuracy: metrics.accuracy, precision: metrics.precision, recall: metrics.recall, f1: metrics.f1, rocAuc: metrics.rocAuc, confusionMatrix: metrics.confusionMatrix, featureImportance };
   });
-  const best = models.slice().sort((a, b) => b.rocAuc - a.rocAuc)[0];
+  const baselineModels = modelResults(baselineModelData.map((model) => ({ model: model.model, predictions: model.predictions.predictions, importance: model.predictions.importance })));
+  const adjustedModels = modelResults(adjustedModelData.map((model) => ({ model: model.model, predictions: model.predictions.predictions, importance: model.predictions.importance })));
+  const allPredictionSets = [
+    ...baselineModelData.map((model) => ({ model: model.model, scores: model.predictions.predictions })),
+    ...adjustedModelData.map((model) => ({ model: model.model, scores: model.predictions.predictions })),
+  ];
+  const thresholds = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8];
+  const thresholdAnalysis = allPredictionSets.flatMap((model) => thresholds.map((threshold) => {
+    const metrics = metricsAtThreshold(testLabels, model.scores, threshold);
+    return {
+      model: model.model,
+      threshold,
+      precision: metrics.precision,
+      recall: metrics.recall,
+      f1: metrics.f1,
+      predictedPositiveRate: metrics.predictedPositiveRate,
+      confusionMatrix: metrics.confusionMatrix,
+    };
+  }));
+  const precisionRecallCurves = allPredictionSets.map((model) => ({
+    model: model.model,
+    points: [0.05, 0.1, 0.15, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95].map((threshold) => {
+      const metrics = metricsAtThreshold(testLabels, model.scores, threshold);
+      return { threshold, precision: metrics.precision, recall: metrics.recall };
+    }),
+  }));
+  const adjustedNames = new Set(adjustedModels.map((model) => model.model));
+  const retentionCandidates = thresholdAnalysis
+    .filter((point) => adjustedNames.has(point.model) && point.recall >= 0.4 && point.precision >= 0.2)
+    .sort((a, b) => b.f1 - a.f1 || b.recall - a.recall || b.precision - a.precision);
+  const fallbackCandidate = thresholdAnalysis
+    .filter((point) => adjustedNames.has(point.model))
+    .sort((a, b) => b.f1 - a.f1 || b.recall - a.recall || b.precision - a.precision)[0];
+  const recommended = retentionCandidates[0] ?? fallbackCandidate;
+  const best = baselineModels.slice().sort((a, b) => b.rocAuc - a.rocAuc)[0];
   return {
     targetDetected: true,
+    classDistribution,
     bestModel: best?.model ?? "Not available",
     trainSize: trainIndices.length,
     testSize: testIndices.length,
-    models,
+    models: baselineModels,
+    adjustedModels,
+    thresholdAnalysis,
+    precisionRecallCurves,
+    recommendedModel: recommended?.model ?? "Not available",
+    recommendedThreshold: recommended?.threshold ?? 0.5,
+    selectionRationale: recommended
+      ? `For retention, ${recommended.model} at a ${recommended.threshold.toFixed(2)} threshold was selected from imbalance-adjusted models because it balances recall (${(recommended.recall * 100).toFixed(1)}%) and F1 (${(recommended.f1 * 100).toFixed(1)}%), rather than maximizing ROC-AUC alone.`
+      : "No adjusted model threshold met the minimum precision and recall guardrails; review the precision-recall tradeoff before deploying outreach.",
+    classImbalanceHandled: imbalanceJustified,
     methodology,
     leakageChecks,
     notes: [
       selected.length < validIndices.length ? `Modeling was capped at ${maxRows.toLocaleString()} labeled rows for runtime stability.` : "All labeled rows were eligible for the deterministic split.",
+      `Class distribution: ${positiveCount.toLocaleString()} ${positiveLabel} (${(classDistribution.positiveRate * 100).toFixed(1)}%) and ${negativeCount.toLocaleString()} non-${positiveLabel} (${(1 - classDistribution.positiveRate) * 100}%); negative-to-positive ratio ${classDistribution.imbalanceRatio.toFixed(2)}.`,
+      imbalanceJustified ? "Class imbalance handling was justified and applied to the adjusted variants." : "Class imbalance handling was not activated because the negative-to-positive ratio was below 1.5.",
+      "Why baseline models can differ: ROC-AUC evaluates ranking across thresholds, while precision, recall, and F1 at 0.50 depend on the operating cutoff. A model can rank churners above retained customers reasonably well yet predict almost no positives at 0.50, producing low recall or zero recall.",
+      "Logistic regression produces a smooth linear probability score, random forest averages shallow tree probabilities and can be conservative for a minority class, and Gaussian naive Bayes assumes conditionally Gaussian features; their threshold behavior can therefore differ even when ROC-AUC values are close.",
       "Predictive feature importance identifies useful signals for this sample; it does not prove that a feature causes churn.",
       "A single holdout split gives an honest final check but can still be noisy; cross-validation would improve uncertainty estimates for production use.",
     ],
@@ -1157,6 +1256,7 @@ router.post("/analyze", (req, res) => {
     churnFlags,
     targetColumn,
     categoricalNormalizers,
+    positiveLabel,
   );
   const methodology = [
     "Descriptive rates are calculated after categorical values are trimmed and normalized case-insensitively.",
