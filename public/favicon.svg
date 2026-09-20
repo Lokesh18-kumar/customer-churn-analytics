@@ -1,3 +1,32 @@
-<svg width="180" height="180" viewBox="0 0 180 180" fill="none" xmlns="http://www.w3.org/2000/svg">
-<rect width="180" height="180" rx="36" fill="#FF3C00"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0A1628"/>
+      <stop offset="100%" stop-color="#0F2440"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Modern dark blue base -->
+  <rect width="128" height="128" rx="28" fill="url(#bg)"/>
+  <rect x="1.5" y="1.5" width="125" height="125" rx="26.5" fill="none" stroke="#1E3A5F" stroke-width="2"/>
+
+  <!-- Analytics baseline -->
+  <line x1="22" y1="98" x2="106" y2="98" stroke="#1E293B" stroke-width="3" stroke-linecap="round"/>
+
+  <!-- Analytics data bars (retention & churn cohorts) -->
+  <rect x="58" y="68" width="10" height="30" rx="3" fill="#1D4ED8"/>
+  <rect x="73" y="52" width="10" height="46" rx="3" fill="#2563EB"/>
+  <rect x="88" y="36" width="10" height="62" rx="3" fill="#38BDF8"/>
+
+  <!-- Customer silhouette / node -->
+  <!-- User head -->
+  <circle cx="38" cy="42" r="13" fill="#38BDF8"/>
+  <!-- User torso -->
+  <path d="M20 86 C20 70 28 62 38 62 C48 62 56 70 56 86" fill="none" stroke="#60A5FA" stroke-width="5.5" stroke-linecap="round"/>
+
+  <!-- Dynamic churn analytics trend line -->
+  <path d="M38 72 Q 52 50 73 58 T 104 32" fill="none" stroke="#F8FAFC" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Data nodes on trend -->
+  <circle cx="73" cy="58" r="3.5" fill="#38BDF8"/>
+  <circle cx="104" cy="32" r="4.5" fill="#FFFFFF"/>
 </svg>
