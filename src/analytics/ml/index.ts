@@ -157,14 +157,14 @@ export function buildPredictiveModeling(
   const positiveWeight = imbalanceJustified ? trainLabels.length / (2 * Math.max(1, trainLabels.filter(Boolean).length)) : 1;
   const negativeWeight = imbalanceJustified ? trainLabels.length / (2 * Math.max(1, trainLabels.filter((label) => !label).length)) : 1;
   const baselineModelData = [
-    { model: "Logistic Regression", predictions: logisticPredict(encoded.train, trainLabels, encoded.test), },
-    { model: "Random Forest", predictions: randomForestPredict(encoded.train, trainLabels, encoded.test, random), },
-    { model: "Gaussian Naive Bayes", predictions: gaussianNaiveBayes(encoded.train, trainLabels, encoded.test), },
+    { model: "Baseline Logistic Regression", predictions: logisticPredict(encoded.train, trainLabels, encoded.test), },
+    { model: "Baseline Random Forest", predictions: randomForestPredict(encoded.train, trainLabels, encoded.test, random), },
+    { model: "Baseline Gaussian Naive Bayes", predictions: gaussianNaiveBayes(encoded.train, trainLabels, encoded.test), },
   ];
   const adjustedModelData = [
-    { model: "Logistic Regression · imbalance-adjusted", predictions: logisticPredict(encoded.train, trainLabels, encoded.test, positiveWeight, negativeWeight), },
-    { model: "Random Forest · balanced bootstrap", predictions: randomForestPredict(encoded.train, trainLabels, encoded.test, random, imbalanceJustified), },
-    { model: "Gaussian Naive Bayes · balanced prior", predictions: gaussianNaiveBayes(encoded.train, trainLabels, encoded.test, imbalanceJustified), },
+    { model: "Adjusted Logistic Regression", predictions: logisticPredict(encoded.train, trainLabels, encoded.test, positiveWeight, negativeWeight), },
+    { model: "Adjusted Random Forest", predictions: randomForestPredict(encoded.train, trainLabels, encoded.test, random, imbalanceJustified), },
+    { model: "Adjusted Gaussian Naive Bayes", predictions: gaussianNaiveBayes(encoded.train, trainLabels, encoded.test, imbalanceJustified), },
   ];
   const modelResults = (modelData: Array<{ model: string; predictions: number[]; importance: Array<{ feature: number; importance: number }> | number[] }>) => modelData.map((model) => {
     const metrics = modelMetrics(testLabels, model.predictions);
@@ -178,7 +178,7 @@ export function buildPredictiveModeling(
       }))
       .sort((a, b) => b.importance - a.importance)
       .slice(0, 10);
-    return { model: model.model, accuracy: metrics.accuracy, precision: metrics.precision, recall: metrics.recall, f1: metrics.f1, rocAuc: metrics.rocAuc, confusionMatrix: metrics.confusionMatrix, featureImportance };
+    return { model: model.model, accuracy: metrics.accuracy, precision: metrics.precision, recall: metrics.recall, f1: metrics.f1, rocAuc: metrics.rocAuc, confusionMatrix: metrics.confusionMatrix, featureImportance, threshold: 0.5 };
   });
   const baselineModels = modelResults(baselineModelData.map((model) => ({ model: model.model, predictions: model.predictions.predictions, importance: model.predictions.importance })));
   const adjustedModels = modelResults(adjustedModelData.map((model) => ({ model: model.model, predictions: model.predictions.predictions, importance: model.predictions.importance })));
@@ -197,6 +197,7 @@ export function buildPredictiveModeling(
       f1: metrics.f1,
       predictedPositiveRate: metrics.predictedPositiveRate,
       confusionMatrix: metrics.confusionMatrix,
+      accuracy: metrics.accuracy,
     };
   }));
   const precisionRecallCurves = allPredictionSets.map((model) => ({
@@ -228,7 +229,7 @@ export function buildPredictiveModeling(
     recommendedModel: recommended?.model ?? "Not available",
     recommendedThreshold: recommended?.threshold ?? 0.5,
     selectionRationale: recommended
-      ? `For retention, ${recommended.model} at a ${recommended.threshold.toFixed(2)} threshold was selected from imbalance-adjusted models because it balances recall (${(recommended.recall * 100).toFixed(1)}%) and F1 (${(recommended.f1 * 100).toFixed(1)}%), rather than maximizing ROC-AUC alone.`
+      ? `For retention, ${recommended.model} at a ${recommended.threshold.toFixed(2)} selected threshold was chosen because it balances Recall (${(recommended.recall * 100).toFixed(1)}%) and F1 (${(recommended.f1 * 100).toFixed(1)}%), rather than maximizing ROC-AUC alone.`
       : "No adjusted model threshold met the minimum precision and recall guardrails; review the precision-recall tradeoff before deploying outreach.",
     classImbalanceHandled: imbalanceJustified,
     methodology,

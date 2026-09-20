@@ -35,8 +35,8 @@ export function buildSegments(
     })[0];
 
   const segmentSource = preferredSegmentBreakdown ?? breakdowns[0];
-  const segmentRows = segmentSource && segmentSource.rows.every((row) => row.reliable)
-    ? segmentSource.rows
+  const segmentRows = segmentSource
+    ? segmentSource.rows.filter((row) => row.reliable)
     : [];
 
   const segments: Segment[] = segmentRows.slice(0, 6).map((row) => {

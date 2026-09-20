@@ -156,20 +156,46 @@ function AppShell() {
       '## Predictive modeling',
       `- Class distribution: ${analysis.predictiveModeling.classDistribution.positive.toLocaleString()} churned (${pct(analysis.predictiveModeling.classDistribution.positiveRate * 100)}) and ${analysis.predictiveModeling.classDistribution.negative.toLocaleString()} retained; ratio ${analysis.predictiveModeling.classDistribution.imbalanceRatio.toFixed(2)}:1.`,
       `- Best held-out ROC-AUC model: ${analysis.predictiveModeling.bestModel}.`,
-      `- Retention-oriented recommendation: ${analysis.predictiveModeling.recommendedModel} at threshold ${analysis.predictiveModeling.recommendedThreshold.toFixed(2)}.`,
+      `- Retention-oriented recommendation: ${analysis.predictiveModeling.recommendedModel} at selected threshold ${analysis.predictiveModeling.recommendedThreshold.toFixed(2)}.`,
       `- Split: ${analysis.predictiveModeling.trainSize.toLocaleString()} training rows and ${analysis.predictiveModeling.testSize.toLocaleString()} test rows.`,
+      '',
+      '### Baseline models (default threshold 0.50)',
       ...analysis.predictiveModeling.models.flatMap((model) => [
-        `- Baseline ${model.model}: accuracy ${pct(model.accuracy * 100)}, precision ${pct(model.precision * 100)}, recall ${pct(model.recall * 100)}, F1 ${pct(model.f1 * 100)}, ROC-AUC ${model.rocAuc.toFixed(3)}.`,
+        `- ${model.model}: Accuracy ${pct(model.accuracy * 100)}, Precision ${pct(model.precision * 100)}, Recall ${pct(model.recall * 100)}, F1 ${pct(model.f1 * 100)}, ROC-AUC ${model.rocAuc.toFixed(3)}.`,
         `  Confusion matrix: TP ${model.confusionMatrix.truePositive}, FP ${model.confusionMatrix.falsePositive}, TN ${model.confusionMatrix.trueNegative}, FN ${model.confusionMatrix.falseNegative}.`,
         `  Top predictive features: ${model.featureImportance.slice(0, 5).map((feature) => `${feature.feature} (${pct(feature.importance * 100)})`).join(', ') || 'not available'}.`,
       ]),
+      '',
+      '### Adjusted models (default threshold 0.50)',
       ...analysis.predictiveModeling.adjustedModels.flatMap((model) => [
-        `- Adjusted ${model.model}: accuracy ${pct(model.accuracy * 100)}, precision ${pct(model.precision * 100)}, recall ${pct(model.recall * 100)}, F1 ${pct(model.f1 * 100)}, ROC-AUC ${model.rocAuc.toFixed(3)}.`,
+        `- ${model.model}: Accuracy ${pct(model.accuracy * 100)}, Precision ${pct(model.precision * 100)}, Recall ${pct(model.recall * 100)}, F1 ${pct(model.f1 * 100)}, ROC-AUC ${model.rocAuc.toFixed(3)}.`,
         `  Confusion matrix: TP ${model.confusionMatrix.truePositive}, FP ${model.confusionMatrix.falsePositive}, TN ${model.confusionMatrix.trueNegative}, FN ${model.confusionMatrix.falseNegative}.`,
         `  Top predictive features: ${model.featureImportance.slice(0, 5).map((feature) => `${feature.feature} (${pct(feature.importance * 100)})`).join(', ') || 'not available'}.`,
       ]),
-      `- ${analysis.predictiveModeling.selectionRationale}`,
-      ...analysis.predictiveModeling.thresholdAnalysis.filter((row) => row.model === analysis.predictiveModeling.recommendedModel).map((row) => `- Threshold ${row.threshold.toFixed(2)} for ${row.model}: precision ${pct(row.precision * 100)}, recall ${pct(row.recall * 100)}, F1 ${pct(row.f1 * 100)}, flagged ${pct(row.predictedPositiveRate * 100)}.`),
+      '',
+      '### Selected threshold metrics',
+      ...(() => {
+        const selected = analysis.predictiveModeling.thresholdAnalysis.find(
+          (row) => row.model === analysis.predictiveModeling.recommendedModel && row.threshold === analysis.predictiveModeling.recommendedThreshold
+        );
+        if (!selected) return [`- ${analysis.predictiveModeling.selectionRationale}`];
+        const m = analysis.predictiveModeling.adjustedModels.find((x) => x.model === analysis.predictiveModeling.recommendedModel)
+          ?? analysis.predictiveModeling.models.find((x) => x.model === analysis.predictiveModeling.recommendedModel);
+        return [
+          `- Model: ${analysis.predictiveModeling.recommendedModel}`,
+          `- Selected threshold: ${selected.threshold.toFixed(2)}`,
+          `- Precision: ${pct(selected.precision * 100)}`,
+          `- Recall: ${pct(selected.recall * 100)}`,
+          `- F1: ${pct(selected.f1 * 100)}`,
+          `- ROC-AUC: ${m ? m.rocAuc.toFixed(3) : 'not available'}`,
+          `- Flagged: ${pct(selected.predictedPositiveRate * 100)}`,
+          `  Confusion matrix: TP ${selected.confusionMatrix.truePositive}, FP ${selected.confusionMatrix.falsePositive}, TN ${selected.confusionMatrix.trueNegative}, FN ${selected.confusionMatrix.falseNegative}.`,
+          `- Rationale: ${analysis.predictiveModeling.selectionRationale}`,
+        ];
+      })(),
+      '',
+      '### Threshold analysis',
+      ...analysis.predictiveModeling.thresholdAnalysis.filter((row) => row.model === analysis.predictiveModeling.recommendedModel).map((row) => `- Threshold ${row.threshold.toFixed(2)} for ${row.model}: Precision ${pct(row.precision * 100)}, Recall ${pct(row.recall * 100)}, F1 ${pct(row.f1 * 100)}, Flagged ${pct(row.predictedPositiveRate * 100)}.`),
       '',
       '## Method notes',
       ...analysis.methodology.map((method) => `- ${method}`),
@@ -238,7 +264,7 @@ function PredictiveModelingCard({ data }: { data: AnalyzeResponse }) {
   const modeling = data.predictiveModeling;
   const recommended = modeling.adjustedModels.find((model) => model.model === modeling.recommendedModel);
   const thresholdRows = modeling.thresholdAnalysis.filter((row) => row.model === modeling.recommendedModel);
-  const adjustedCurves = modeling.precisionRecallCurves.filter((curve) => curve.model.includes('·'));
+  const adjustedCurves = modeling.precisionRecallCurves.filter((curve) => curve.model.startsWith('Adjusted') || curve.model.includes('·'));
   const curveData = Array.from({ length: Math.max(0, ...adjustedCurves.map((curve) => curve.points.length)) }, (_, index) => {
     const point = adjustedCurves[0]?.points[index];
     return { threshold: point?.threshold ?? 0, recall: point?.recall ?? 0, ...Object.fromEntries(adjustedCurves.map((curve, curveIndex) => [`curve${curveIndex}`, curve.points[index]?.precision ?? 0])) };
@@ -247,9 +273,9 @@ function PredictiveModelingCard({ data }: { data: AnalyzeResponse }) {
   return <Card title="Churn prediction benchmark" eyebrow="Baseline vs imbalance-adjusted" exportRows={exportRows} exportName="model-comparison-and-thresholds.csv">
     <div className="mb-3 grid gap-2 sm:grid-cols-3"><div className="rounded-lg bg-muted p-3"><p className="text-[10px] text-muted-foreground">Churned</p><p className="metric-value mt-1 text-lg font-bold text-destructive">{modeling.classDistribution.positive.toLocaleString()} ({pct(modeling.classDistribution.positiveRate * 100)})</p></div><div className="rounded-lg bg-muted p-3"><p className="text-[10px] text-muted-foreground">Retained</p><p className="metric-value mt-1 text-lg font-bold">{modeling.classDistribution.negative.toLocaleString()} ({pct((1 - modeling.classDistribution.positiveRate) * 100)})</p></div><div className="rounded-lg bg-muted p-3"><p className="text-[10px] text-muted-foreground">Negative:positive ratio</p><p className="metric-value mt-1 text-lg font-bold">{modeling.classDistribution.imbalanceRatio.toFixed(2)}:1</p></div></div>
     <div className="mb-4 rounded-lg bg-primary/10 p-3 text-xs leading-5 text-muted-foreground"><b className="text-foreground">Retention recommendation:</b> {modeling.selectionRationale}<br /><span className="text-[11px]">ROC-AUC remains useful for ranking, but the recommendation also considers threshold-specific recall, precision, and F1. The result is predictive evidence, not causal evidence.</span></div>
-    <div className="space-y-4"><ModelMetricsTable title="Baseline models · default threshold 0.50" models={modeling.models} bestModel={modeling.bestModel} /><ModelMetricsTable title="Imbalance-adjusted models · same held-out test set" models={modeling.adjustedModels} /></div>
+    <div className="space-y-4"><ModelMetricsTable title="Baseline models · default threshold 0.50" models={modeling.models} bestModel={modeling.bestModel} /><ModelMetricsTable title="Adjusted models · default threshold 0.50" models={modeling.adjustedModels} /></div>
     {recommended && <div className="mt-4 rounded-lg border border-border p-3"><div className="mb-2 flex items-center justify-between"><p className="text-xs font-bold">Recommended model features · {recommended.model}</p><span className="text-[10px] text-muted-foreground">predictive, not causal</span></div><div className="space-y-2">{recommended.featureImportance.slice(0, 8).map((feature) => <div key={feature.feature}><div className="mb-1 flex justify-between text-[11px]"><span>{feature.feature}</span><span className="font-mono text-muted-foreground">{(feature.importance * 100).toFixed(1)}%</span></div><div className="h-1.5 rounded-full bg-muted"><div className="h-full rounded-full bg-primary" style={{ width: `${Math.min(100, feature.importance * 100)}%` }} /></div></div>)}</div></div>}
-    {thresholdRows.length > 0 && <div className="mt-4"><p className="mb-2 text-xs font-bold text-primary">Threshold tradeoff · {modeling.recommendedModel}</p><div className="overflow-x-auto"><table className="w-full min-w-[650px] text-left text-xs"><thead><tr className="border-b border-border text-[10px] uppercase tracking-wider text-muted-foreground"><th className="pb-2">Threshold</th><th className="pb-2">Precision</th><th className="pb-2">Recall</th><th className="pb-2">F1</th><th className="pb-2">Flagged</th><th className="pb-2">Confusion matrix</th></tr></thead><tbody>{thresholdRows.map((row) => <tr key={row.threshold} className={`border-b border-border/60 last:border-0 ${row.threshold === modeling.recommendedThreshold ? 'bg-primary/10' : ''}`}><td className="py-2 font-mono">{row.threshold.toFixed(2)}{row.threshold === modeling.recommendedThreshold && <span className="ml-1 text-primary">recommended</span>}</td><td className="py-2 font-mono">{pct(row.precision * 100)}</td><td className="py-2 font-mono">{pct(row.recall * 100)}</td><td className="py-2 font-mono">{pct(row.f1 * 100)}</td><td className="py-2 font-mono">{pct(row.predictedPositiveRate * 100)}</td><td className="py-2 font-mono text-[11px]">TP {row.confusionMatrix.truePositive} · FP {row.confusionMatrix.falsePositive} · TN {row.confusionMatrix.trueNegative} · FN {row.confusionMatrix.falseNegative}</td></tr>)}</tbody></table></div></div>}
+    {thresholdRows.length > 0 && <div className="mt-4"><p className="mb-2 text-xs font-bold text-primary">Threshold analysis · {modeling.recommendedModel}</p><div className="overflow-x-auto"><table className="w-full min-w-[650px] text-left text-xs"><thead><tr className="border-b border-border text-[10px] uppercase tracking-wider text-muted-foreground"><th className="pb-2">Threshold</th><th className="pb-2">Precision</th><th className="pb-2">Recall</th><th className="pb-2">F1</th><th className="pb-2">Flagged</th><th className="pb-2">Confusion matrix</th></tr></thead><tbody>{thresholdRows.map((row) => <tr key={row.threshold} className={`border-b border-border/60 last:border-0 ${row.threshold === modeling.recommendedThreshold ? 'bg-primary/10' : ''}`}><td className="py-2 font-mono">{row.threshold.toFixed(2)}{row.threshold === modeling.recommendedThreshold && <span className="ml-1 text-primary">selected threshold</span>}</td><td className="py-2 font-mono">{pct(row.precision * 100)}</td><td className="py-2 font-mono">{pct(row.recall * 100)}</td><td className="py-2 font-mono">{pct(row.f1 * 100)}</td><td className="py-2 font-mono">{pct(row.predictedPositiveRate * 100)}</td><td className="py-2 font-mono text-[11px]">TP {row.confusionMatrix.truePositive} · FP {row.confusionMatrix.falsePositive} · TN {row.confusionMatrix.trueNegative} · FN {row.confusionMatrix.falseNegative}</td></tr>)}</tbody></table></div></div>}
     {curveData.length > 0 && <div className="mt-4"><p className="mb-2 text-xs font-bold text-primary">Precision–recall curves · adjusted models</p><ResponsiveContainer width="100%" height={250}><LineChart data={curveData} margin={{ top: 8, right: 10, bottom: 18, left: 0 }}><CartesianGrid stroke="hsl(var(--border))" /><XAxis dataKey="recall" type="number" domain={[0, 1]} tickFormatter={(value) => `${Math.round(value * 100)}%`} tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} label={{ value: 'Recall', position: 'insideBottom', offset: -10, fontSize: 10 }} /><YAxis domain={[0, 1]} tickFormatter={(value) => `${Math.round(value * 100)}%`} tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} /><Tooltip formatter={(value: number) => pct(value * 100)} labelFormatter={(value) => `Recall ${pct(Number(value) * 100)}`} />{adjustedCurves.map((curve, index) => <Line key={curve.model} type="monotone" dataKey={`curve${index}`} name={curve.model} stroke={COLORS[index + 1] || COLORS[0]} strokeWidth={2} dot={false} />)}</LineChart></ResponsiveContainer></div>}
     <div className="mt-4 space-y-1.5">{modeling.notes.map((note, index) => <p key={index} className="flex gap-2 text-xs leading-5 text-muted-foreground"><CircleHelp size={14} className="mt-0.5 shrink-0 text-accent" />{note}</p>)}{modeling.leakageChecks.map((check, index) => <p key={`leakage-${index}`} className="flex gap-2 text-xs leading-5 text-muted-foreground"><ShieldCheck size={14} className="mt-0.5 shrink-0 text-primary" />{check}</p>)}</div>
   </Card>;

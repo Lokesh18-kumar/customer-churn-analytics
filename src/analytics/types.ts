@@ -162,6 +162,7 @@ export interface ModelResult {
   rocAuc: number;
   confusionMatrix: ConfusionMatrix;
   featureImportance: FeatureImportance[];
+  threshold?: number;
 }
 
 export interface ThresholdMetrics {
